@@ -107,8 +107,13 @@
 
 (defn reposition-thumb-cluster [expr]
   (->> expr
-       (rotate (/ 3.14 4) [0 0 1])
-       (translate [50 100 -60])))
+      (rotate 0.1 [1 0 0])
+       (rotate 1 [0 0 1])
+       (translate [26 95 -109])))
+
+(defn reposition-last-thumb-button [expr]
+  (->> expr
+        (translate [16 10 65])))
 
 
 (defn wall [expr]
@@ -117,8 +122,8 @@
          (project expr)
          (extrude-linear {:height 0.0001}))))
 
-(defn vertex-generators [n-rows n-cols n-thumbrows thumb-radius phi radii]
-  (let [sphereo (fn [off-x off-y row col]
+(defn vertex-generators [n-rows n-cols n-thumbrows thumb-radius radii]
+  (let [finger-vtx (fn [off-x off-y row col]
                   (->> (sphere (* 0.5 case-thickness))
                        (translate [(* switch-plane-size off-x)
                                    (nth radii col)
@@ -134,15 +139,14 @@
                                        (row-phi switch-plane-size (+ (reduce min radii) 10))) [1 0 0])
                             ;;                    (reposition col (nth radii col) n-rows)
                             (reposition col (reduce max radii) n-rows)))
-        shp (fn [off-x off-y c]
+        thumb-vtx (fn [off-x off-y c]
               (let [switch-plane-size 18]
                 (->> (sphere (* 0.5 case-thickness))
-                     ;; (rotate r [ 0  1 0])
-                     (translate [ thumb-radius
+                     (translate [ (- thumb-radius)
                                  (* off-x switch-plane-size)
                                  (* off-y switch-plane-size)])
-                     (rotate (* c (/ phi n-thumbrows)) [0  1 0])
-                     (translate [(- thumb-radius) 0 0])
+                     (rotate (* c (row-phi switch-plane-size thumb-radius)) [0  1 0])
+                     (translate [thumb-radius 0 0])
                      (reposition-thumb-cluster)
                      ;; (rotate (- (* c (/ 3.14 n-keys))) [0  1 0])
                      )))
@@ -151,84 +155,84 @@
                           (sphere (* 0.5 case-thickness))
                           (translate [(* (- off-y 1) (- switch-plane-size)) (* off-x switch-plane-size) 5])
                           (reposition-thumb-cluster)
-                          (translate [0 0 (* 1.3 switch-plane-size)])))
+                          (reposition-last-thumb-button)
+                         ))
         first-col-edge (fn [r]
-                         (->> (sphereo 1 -0.5 r 0)
+                         (->> (finger-vtx 1 -0.5 r 0)
                               (translate [0 10 6])))
         last-col-edge (fn [r]
-                        (->> (sphereo -1 -0.5 r (dec n-cols))
+                        (->> (finger-vtx -1 -0.5 r (dec n-cols))
                              (translate [0 0 13])))
         ]
-    {:sphereo sphereo
-
+    {:finger-vtx finger-vtx
      :edge-cleaner edge-cleaner
-     :shp shp
+     :thumb-vtx thumb-vtx
      :first-col-edge first-col-edge
      :last-col-edge last-col-edge
      :last-thumb-btn last-thumb-btn}))
 
 
 
-(defn keyboard [n-rows n-cols n-thumbrows thumb-radius phi radii]
-  (let [{sphereo :sphereo 
+(defn keyboard [n-rows n-cols n-thumbrows thumb-radius radii]
+  (let [{finger-vtx :finger-vtx 
          edge-cleaner :edge-cleaner 
-         shp :shp 
+         thumb-vtx :thumb-vtx 
          first-col-edge :first-col-edge 
          last-col-edge :last-col-edge
-         last-thumb-btn :last-thumb-btn} (vertex-generators n-rows n-cols n-thumbrows thumb-radius phi radii)
+         last-thumb-btn :last-thumb-btn} (vertex-generators n-rows n-cols n-thumbrows thumb-radius radii)
         keyplate (union
                   ;; the keyhole-plates for each row
                   (for [i (range n-cols)
                         j (range n-rows)]
                     (hull
-                     (sphereo -0.5 -0.5 j i)
-                     (sphereo -0.5 0.5 j i)
-                     (sphereo 0.5 -0.5 j i)
-                     (sphereo 0.5 0.5 j i)
+                     (finger-vtx -0.5 -0.5 j i)
+                     (finger-vtx -0.5 0.5 j i)
+                     (finger-vtx 0.5 -0.5 j i)
+                     (finger-vtx 0.5 0.5 j i)
                      ))
                                         ; the gaps beween two rows
                   (for [i (range (dec n-cols)) ;
                         j (range  n-rows)]
                     (hull
-                     (sphereo -0.5 0.5 j i)
-                     (sphereo -0.5 -0.5  j i)
-                     (sphereo 0.5 -0.5 j (inc i))
-                     (sphereo 0.5 0.5  j (inc i))
+                     (finger-vtx -0.5 0.5 j i)
+                     (finger-vtx -0.5 -0.5  j i)
+                     (finger-vtx 0.5 -0.5 j (inc i))
+                     (finger-vtx 0.5 0.5  j (inc i))
                      )
                     )
                   ;; for first and last col add 1 more stip and then do hull to bottom projected points
                   
-                  (for [r (range (- n-rows 2))]
+                  (for [r (range n-rows)]
                     ;; first col
                     (hull
-                     (sphereo 0.5 -0.5 r 0)
-                     (sphereo 0.5 -0.5 (inc r) 0)
+                     (finger-vtx 0.5 -0.5 r 0)
+                     (finger-vtx 0.5 -0.5 (inc r) 0)
                      (first-col-edge r)
                      (first-col-edge (inc r))
                      ))
                   (for [r (range n-rows)]
                     ;; last col
                     (hull
-                     (sphereo 0.5 -0.5 r  n-cols)
-                     (sphereo 0.5 -0.5 (inc r) n-cols)
+                     (finger-vtx 0.5 -0.5 r  n-cols)
+                     (finger-vtx 0.5 -0.5 (inc r) n-cols)
                      (last-col-edge r)
                      (last-col-edge (inc r))
                      )))
         bottom-right-corner (wall
                              (hull
-                              (sphereo 0.5 -0.5 n-rows  n-cols)
+                              (finger-vtx 0.5 -0.5 n-rows  n-cols)
                               (last-col-edge n-rows)
                               (edge-cleaner false 0.5 n-cols)
                               ))
         top-right-corner (wall
                           (hull
-                           (sphereo 0.5  -0.5 0 n-cols)
+                           (finger-vtx 0.5  -0.5 0 n-cols)
                            (last-col-edge 0)
                            (edge-cleaner true 0.5  n-cols)
                            ))
         top-left-corner (union
                          (hull
-                          (sphereo 0.5 -0.5 0 0)
+                          (finger-vtx 0.5 -0.5 0 0)
                           (edge-cleaner true 0.5 0)
                           (first-col-edge 0)
                           )
@@ -239,8 +243,8 @@
         right-wall (for [r (range n-rows)]
                      (union
                       (hull
-                       (sphereo -0.5 -0.5 r (dec n-cols))
-                       (sphereo -0.5 -0.5 (inc r) (dec n-cols))
+                       (finger-vtx -0.5 -0.5 r (dec n-cols))
+                       (finger-vtx -0.5 -0.5 (inc r) (dec n-cols))
                        (last-col-edge r)
                        (last-col-edge (inc r)))
                       (wall
@@ -251,23 +255,23 @@
                      ;; first row
                      (for [i (range 1 n-cols)]               
                        (union
-                        (hull (sphereo -0.5 -0.5 n-rows i)
-                              (sphereo 0.5 -0.5 n-rows i)
+                        (hull (finger-vtx -0.5 -0.5 n-rows i)
+                              (finger-vtx 0.5 -0.5 n-rows i)
                               (edge-cleaner false -0.5 i)
                               (edge-cleaner false 0.5 i))
-                        (hull (sphereo 0.5 -0.5 n-rows  (inc i))
-                              (sphereo -0.5 -0.5 n-rows i)
+                        (hull (finger-vtx 0.5 -0.5 n-rows  (inc i))
+                              (finger-vtx -0.5 -0.5 n-rows i)
                               (edge-cleaner false -0.5 i)
                               (edge-cleaner false 0.5  (inc i)))))
                      ;; last row
                      (for [i (range n-cols)]
                        (union
-                        (hull (sphereo -0.5 -0.5 0 i)
-                              (sphereo 0.5 -0.5 0 i)
+                        (hull (finger-vtx -0.5 -0.5 0 i)
+                              (finger-vtx 0.5 -0.5 0 i)
                               (edge-cleaner true -0.5 i)
                               (edge-cleaner true 0.5 i))
-                        (hull (sphereo -0.5 -0.5 0 i)
-                              (sphereo 0.5 -0.5 0 (inc i))
+                        (hull (finger-vtx -0.5 -0.5 0 i)
+                              (finger-vtx 0.5 -0.5 0 (inc i))
                               (edge-cleaner true -0.5 i)
                               (edge-cleaner true 0.5 (inc i))))))
         front-back-walls (union
@@ -300,14 +304,14 @@
                         (reposition 2 (nth radii 2) -1))
                    (for [c (range n-thumbrows)]
                      (->> (cube (* 2 case-thickness) switch-cuttout-size switch-cuttout-size)
-                          (translate [thumb-radius 0 0])
-                          (rotate (* c (/ phi n-thumbrows)) [0 1 0])
                           (translate [(- thumb-radius) 0 0])
+                          (rotate (* c (row-phi switch-plane-size thumb-radius)) [0 1 0])
+                          (translate [thumb-radius 0 0])
                           (reposition-thumb-cluster)))
                    (->> (cube  switch-cuttout-size switch-cuttout-size (* 4 case-thickness))
                         (translate [ switch-plane-size 0 0])
                         (reposition-thumb-cluster)
-                        (translate [0 0 (* 1.3 switch-plane-size)])))
+                        (reposition-last-thumb-button)))
         key-caps (union
                   (for [i (range n-cols)] ;; the keyholes for each row
                     (->> (caps-col (nth radii i) n-rows)
@@ -317,30 +321,30 @@
                     (->> cap
                          (rotate (* 0.5 Math/PI) [0 1 0])
                          (rotate (/ 3.14 2) [0 0 1])         
-                         (translate [thumb-radius 0 0])
-                         (rotate (* c (/ phi n-thumbrows)) [0 1 0])
                          (translate [(- thumb-radius) 0 0])
+                         (rotate (* c (row-phi switch-plane-size thumb-radius)) [0 1 0])
+                         (translate [thumb-radius 0 0])
                          (reposition-thumb-cluster)))
                   (->> cap
                        (rotate (/ 3.14 2) [1 0 0])         
-                       (translate [ switch-plane-size 0 0])
+                       (translate [ switch-plane-size 0 5])
                        (reposition-thumb-cluster)
-                       (translate [0 0 (+ 5 (* 1.3 switch-plane-size))])))
+                       (reposition-last-thumb-button)))
         thumb-cluster (union
                        (for [c (range n-thumbrows)]                         
                          (union (hull
-                                 (shp -0.5 -0.5 c)
-                                 (shp -0.5 0.5 c)
-                                 (shp 0.5 -0.5 c)
-                                 (shp 0.5 0.5 c))
+                                 (thumb-vtx -0.5 -0.5 c)
+                                 (thumb-vtx -0.5 0.5 c)
+                                 (thumb-vtx 0.5 -0.5 c)
+                                 (thumb-vtx 0.5 0.5 c))
                                 (hull
-                                 (shp -0.5 0.5 (inc c))
-                                 (shp 0.5 0.5 (inc c))
-                                 (shp -0.5 -0.5 c)
-                                 (shp 0.5 -0.5 c))))
+                                 (thumb-vtx -0.5 0.5 (inc c))
+                                 (thumb-vtx 0.5 0.5 (inc c))
+                                 (thumb-vtx -0.5 -0.5 c)
+                                 (thumb-vtx 0.5 -0.5 c))))
                        (hull
-                        (shp -0.5 0.5 0)
-                        (shp 0.5 0.5 0)
+                        (thumb-vtx -0.5 0.5  n-thumbrows)
+                        (thumb-vtx 0.5 0.5  n-thumbrows)
                         (last-thumb-btn -0.5 0.5)
                         (last-thumb-btn 0.5 0.5)
                         )
@@ -351,92 +355,76 @@
                         (last-thumb-btn 0.5 -0.5)))
         bottom-left-corner (union
                             (hull
-                             (edge-cleaner false 0.5 1)
-                             (sphereo 0.5 -0.5 n-rows 0)
-                             (sphereo 0.5 -0.5 n-rows 1))
-                            (hull
-                             (sphereo 0.5 -0.5 n-rows 0)
-                             (sphereo 0.5 -0.5 (dec n-rows) 0)
-                             (shp 0.5 -0.5 (dec n-thumbrows))
-                             )
-                            (hull
-                             (edge-cleaner false 0.5 1)
-                             (shp -0.5 0.5 0)
-                             (last-thumb-btn -0.5 0.5))
-                            (hull
-                             (sphereo 0.5 -0.5 n-rows 0)
-                             (shp 0.5 -0.5 (dec n-thumbrows))
-                             (shp -0.5 -0.5 (dec n-thumbrows)))
-                            (hull
-                             (sphereo 0.5 -0.5 n-rows 0)
-                             (sphereo 0.5 -0.5 (dec n-rows) 0)
-                             (shp 0.5 -0.5 (dec n-thumbrows)))
-                            (hull
-                             (sphereo 0.5 -0.5 (dec n-rows) 0)
-                             (first-col-edge (- n-rows 2))
-                             (shp 0.5 -0.5 (dec n-thumbrows)))
-                            (hull
-                             (sphereo 0.5 -0.5 (dec n-rows) 0)
-                             (first-col-edge (- n-rows 2))
-                             (sphereo 0.5 -0.5 (- n-rows 2) 0))
-                            (hull
-                             (edge-cleaner false 0.5 1)
-                             (sphereo 0.5 -0.5 n-rows 0)
-                             (shp -0.5 -0.5 (dec n-thumbrows)))
+                             (last-thumb-btn -0.5 -0.5)
+                             (last-thumb-btn 0.5 -0.5)
+                             (->>
+                              (last-thumb-btn 0 -0.86)
+                              (translate [0 0 13])))
                             (for [i (range  n-thumbrows)]
                               (hull
                                (edge-cleaner false 0.5 1)
-                               (shp -0.5 0.5 i)
-                               (shp -0.5 0.5 (inc i))))
-                            (hull                     
+                               (thumb-vtx -0.5 -0.5 i)
+                               (thumb-vtx -0.5 0.5 (inc i))))
+                            (hull
+                             (thumb-vtx -0.5 -0.5 0)
+                             (thumb-vtx 0.5 -0.5 0)
                              (first-col-edge (- n-rows 2))
-                             (shp 0.5 -0.5 (- n-thumbrows 2))
-                             (shp 0.5 -0.5 (dec n-thumbrows))))
+                             (first-col-edge (dec n-rows)))
+                            (hull
+                             (first-col-edge  n-rows)
+                             (edge-cleaner false 0.5 1)
+                             (finger-vtx 0.5 0.5 (dec n-rows) 0)
+                             )
+                            (hull
+                             (first-col-edge  n-rows)
+                             (edge-cleaner false 0.5 1)
+                             (first-col-edge (dec n-rows))
+                             )
+                            (hull
+                             (thumb-vtx -0.5 -0.5 0)
+                             (edge-cleaner false 0.5 1)
+                             (first-col-edge (dec n-rows))
+                             )
+                            (hull
+                             (finger-vtx -0.5 0.5 (dec n-rows) 0)
+                             (edge-cleaner false 0.5 1)
+                             (finger-vtx 0.5 0.5 (dec n-rows) 0))
+                            (hull
+                             (thumb-vtx -0.5 0.5  n-thumbrows)
+                             (edge-cleaner false 0.5 1)
+                             (last-thumb-btn -0.5 0.5))
+                            )
         left-wall (union
                    (for [r (range 1 (dec n-rows))]
                      (wall
                       (hull
                        (first-col-edge r)
                        (first-col-edge (dec r)))))
-                   
+                   (for [r (range n-thumbrows)]
+                     (wall
+                      (hull
+                       (thumb-vtx 0.5 0.5 r)
+                       (thumb-vtx 0.5 0.5 (inc r)))))
                    (wall
                     (hull
                      (edge-cleaner false 0.5 1)
-                                        ;(shp -0.5 0.5 (- n-thumbrows 3))
                      (last-thumb-btn -0.5 0.5)))
-                   (for [b (range (dec n-thumbrows))]
-                     (union
-                      (wall
-                       (hull
-                        (shp 0.5 -0.5 b)
-                        (shp 0.5 0.5 b)))))
                    (wall
                     (hull
                      (last-thumb-btn 0.5 0.5)
                      (last-thumb-btn 0.5 -0.5)))
                    (wall
                     (hull
-                     (shp 0.5 0.5 (- n-thumbrows 1))
+                     (thumb-vtx 0.5 0.5 0)
                      (first-col-edge (- n-rows 2)))) 
-                   (hull
-                    (last-thumb-btn -0.5 -0.5)
-                    (last-thumb-btn 0.5 -0.5)
-                    (->>
-                     (last-thumb-btn 0 -0.86)
-                     (translate [0 0 13])))
+                   (wall
+                    (hull
+                     (last-thumb-btn 0.5 0.5)
+                     (thumb-vtx 0.5 0.5 n-thumbrows))) 
                    (wall
                     (hull
                      (last-thumb-btn -0.5 -0.5)
                      (last-thumb-btn -0.5 0.5)))
-                   (wall
-                    (hull
-                     (shp -0.5 0.5 0)
-                     (last-thumb-btn -0.5 0.5)))
-                   (wall
-                    (hull
-                     (shp 0.5 0.5 0)
-                     (last-thumb-btn 0.5 0.5)
-                     ))
                    (wall
                     (hull
                      (->>
@@ -490,7 +478,6 @@
                                    (translate [(* 20 x) (* 30 y) (if (and (= x 1) (zero? z))
                                                                    12
                                                                    (* 20 z))]))))
-                               
                                (rotate -0.2 [0 0 1])
                                (translate [-73 70 -56]))
         arduino-usb-cuttout-wall (intersection
@@ -531,16 +518,17 @@
              arduino-usb-cuttout-wall
              rj-11-socket-holder
              )
-      ;; key-caps
+      key-caps
       )
      rj-11-cuttout
      connector-compartment
      key-holes
      arduino-usb-cuttout
+     (->> (cube 1000 1000 40))
      ;; leg-rest-cuttout
      )))
 
-(keyboard 4 7 3 75 (/ 3.14 3.8) [95 95 100 98 80 80 80 80])
+(keyboard 4 6 3 80 [95 95 100 98 80 80 80 80])
 
 ;; (with-fn 100
   ;; (keyboard 4 7 3 75 (/ 3.14 3.8) [95 95 95 105 100 80 80 80]))
@@ -558,11 +546,11 @@
 
 ;; 4x7 with three cols for pointing fingers
 (def right-hand-4x7-3-first-cols
-  (keyboard 4 7 3 75 (/ 3.14 3.8) [95 95 95 105 100 80 80 80]))
+  (keyboard 4 7 3 75 [95 95 95 105 100 80 80 80]))
 
 (def left-hand-4x7-3-first-cols
   (->>
-   (keyboard 4 7 3 75 (/ 3.14 3.8) [95 95 95 105 100 80 80 80])
+   (keyboard 4 7 3 75 [95 95 95 105 100 80 80 80])
    (mirror [0 1 0])))
 
 (spit "scad_files/right_hand_4x7_3_first_cols.scad"
@@ -575,11 +563,11 @@
 
 ;; 4x7 with three cols for pinky fingers
 (def right-hand-4x7-3-last-cols
-  (keyboard 4 7 3 75 (/ 3.14 3.8) [95 95 105 100 80 80 80 80]))
+  (keyboard 4 7 3 75  [95 95 105 100 80 80 80 80]))
 
 (def left-hand-4x7-3-last-cols
   (->>
-   (keyboard 4 7 3 75 (/ 3.14 3.8) [95 95 105 100 80 80 80 80])
+   (keyboard 4 7 3 75 [95 95 105 100 80 80 80 80])
    (mirror [0 1 0])))
 
 (spit "scad_files/right_hand_4x7_3_last_cols.scad"
@@ -591,11 +579,11 @@
 
 ;; 4x6
 (def right-hand-4x6-cols
-  (keyboard 4 6 3 75 (/ 3.14 3.8) [ 95 95 105 100 80 80 80]))
+  (keyboard 4 6 3 75 [95 95 105 100 80 80 80]))
 
 (def left-handy-4x6-cols
   (->>
-   (keyboard 4 6 3 75 (/ 3.14 3.8) [ 95 95 105 100 80 80 80])
+   (keyboard 4 6 3 75 [95 95 105 100 80 80 80])
    (mirror [0 1 0])))
 
 (spit "scad_files/right_hand_4x6"
