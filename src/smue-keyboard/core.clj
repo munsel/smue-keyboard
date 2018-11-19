@@ -44,35 +44,33 @@
        (distribute r row cutout)
        ))))
 
+
+
 (def cap
   (let [a 18
         h 11
         off-y 2.5
-        off-x 1
-        key-cap (hull (->> (hull
-                            (for [i [-0.5 0.5]
-                                  j [-0.5 0.5]]
-                              (->> (with-fn 60 (sphere 2))
-                                   (translate [(* a i) (* a j) 4]))))
-                           (project)
-                           (extrude-linear {:height 1.5})
-                           (translate [0 0 0.05]))
-                      
-                      (->> (with-fn 30 (sphere 2))
-                           (translate [(- (* a 0.5) off-x)
-                                       (* a 0.5)
+        r 2
+        off-x 3 
+        a1 (- a r r)
+        key-cap (hull
+                 (->> (minkowski (square a1 a1) (with-fn 30 (circle r)))
+                      (extrude-linear {:height 0.5}))
+                      (->> (with-fn 30 (sphere r))
+                           (translate [(- (* a1 0.5) off-x)
+                                       (* a1 0.5)
                                        (dec h)]))
-                      (->> (with-fn 30 (sphere 2))
-                           (translate [(+ off-x (* a -0.5))
-                                       (* a 0.5)
+                      (->> (with-fn 30 (sphere r))
+                           (translate [(+ off-x (* a1 -0.5))
+                                       (* a1 0.5)
                                        (dec h)]))
-                      (->> (with-fn 30 (sphere 2))
-                           (translate [(- (* a 0.5) off-x)
-                                       (+ (* a -0.5) off-y)
+                      (->> (with-fn 30 (sphere r))
+                           (translate [(- (* a1 0.5) off-x)
+                                       (+ (* a1 -0.5) off-y)
                                        (dec h)]))
-                      (->> (with-fn 30 (sphere 2))
-                           (translate [(+ off-x (* a -0.5))
-                                       (+ (* a -0.5) off-y)
+                      (->> (with-fn 30 (sphere r))
+                           (translate [(+ off-x (* a1 -0.5))
+                                       (+ (* a1 -0.5) off-y)
                                        (dec h)])))]
     (->> (difference
           key-cap
@@ -83,7 +81,6 @@
          (rotate Math/PI [0 0 1])
          (translate [0 0 (+ 5 case-thickness)])
          (rotate (/ 3.14 2) [1 0 0])
-
          (color [220/255 215/255 220/255 1]))))
 
 (defn caps-col [radius n-rows]
