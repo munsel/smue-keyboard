@@ -1,13 +1,13 @@
 (ns smue-keyboard.core
-  (:refer-clojure :exclude [use import])
-  (:require [scad-clj.scad :refer :all]
-            [scad-clj.model :refer :all]))
+(:refer-clojure :exclude [use import])
+(:require [scad-clj.scad :refer :all]
+        [scad-clj.model :refer :all]))
 
 
 (def single-button-angle (* Math/PI (/ 13.0 180)))
 (def single-row-angle (* Math/PI (/ 9.0 180)))
 (def switch-cuttout-size 14.7)
-(def switch-plane-size 26)
+(def switch-plane-size 20)
 (def case-thickness 4)
 
 
