@@ -1,6 +1,6 @@
 # SUPER MEGA ULTRA ERGO KEYBOARD 
 
-![concept][img/concept.svg]
+![concept](./img/concept.svg)
 
 This is another mechanical, 3d-printable dome-shaped keyboard.
 It was written in clojure from scratch using the great DSL scad-clj.
