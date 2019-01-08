@@ -61,7 +61,7 @@
 
 (defn thumb-vtxs [specs]
   (let [cols (:thumb specs)
-        b (* 0.5 switch-plane-size)
+        b (* 0.5 (inc switch-plane-size))
         r 50
         plates (vec
                 (for [col cols]
@@ -78,11 +78,11 @@
                                            (row-phi switch-plane-size r)))
                            (rotate-v :y (* -1 (:col p) (row-phi switch-plane-size r)))
                            (translate-v [0 0 r])
-                           (rotate-v :x 0.4)
-                           (rotate-v :y 0.2)
+                           (rotate-v :x 0.)
+                           (rotate-v :y 0.3)
                            (rotate-v :z -0.9)
                            ;; (rotate-v :y -0.4)
-                           (translate-v [-53 -45 20])))))))]
+                           (translate-v [-53 -37 29])))))))]
     plates))
 
 
@@ -90,7 +90,7 @@
 (def t-vtxs (thumb-vtxs keyboard-specs))
 
 
-
+(keyboard vtxs)
 
 (defn  keyplate [vtxs]
   (union
@@ -225,7 +225,7 @@
 
 
 (defn patch [vtxs t-vtxs]
-  (let [c1 (drop-last 2 (first vtxs))
+  (let [c1 (drop-last 3 (first vtxs))
         c2 (reverse (map last t-vtxs))]
     (union
      (stitch-together
@@ -236,7 +236,9 @@
      (wall (hull (-> c1 last :tl sp)
                  (-> c2 last :tl sp))))))
 
-;; (patch vtxs t-vtxs)
+(patch vtxs t-vtxs)
+
+(keyboard vtxs)
 
 (defn rj-11-socket-holder [vtxs]
   (let [pad 2
@@ -281,16 +283,15 @@
 (defn arduino-usb-cuttout [vtxs]
   (let [[x y z]  (-> vtxs first last :tl)]
     (->>
-     (cube 10 10 10)
-     (rotate 0.22 [0 0 1])
-     (translate [x (- y 5) 12.5]))))
+     (cube 10 8 15)
+          (translate [x (- y 5) 12.5]))))
 
 
 (defn keyboard [vtxs]  
   (difference
    (union
     (keyplate vtxs)
-    (walls vtxs [0 3 0 0])
+    (walls vtxs [0 2 0 0])
     (thumb-cluster)
     (patch vtxs t-vtxs)
     (rj-11-socket-holder vtxs)
