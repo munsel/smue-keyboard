@@ -8,12 +8,12 @@
 
 
 (def keyboard-specs
-  {:fingers [{:r 95 :n 5 :off-x 0 :off-y 0 :rot-y -1.1}
+  {:fingers [{:r 95 :n 5 :off-x 0 :off-y 0 :rot-y -1.15}
              {:r 95 :n 5 :off-x 22 :off-y 0 :rot-y 0}
              {:r 98 :n 5 :off-x 22 :off-y 0.5 :rot-y 0}
              {:r 96 :n 5 :off-x 22 :off-y 0.3 :rot-y 0}
              {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 0}
-             {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 1.1}]
+             {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 1.2}]
    
    :thumb [[{:col 0 :row 0 :off-y -0.5}
             {:col 0 :row 1 :off-y -0.5}
@@ -24,6 +24,7 @@
 
 (defn finger-vtxs [specs]
   (let [a (* 0.5 switch-plane-size)
+        a- (- a)
         h (+ 22 (reduce max (map :r (:fingers specs))))]
     (loop [cols (:fingers specs)
            vtxs '() 
@@ -38,25 +39,31 @@
                rot-y :rot-y} col
               phi (row-phi switch-plane-size r)
               phi0 (* phi n -0.5)
-              fx #(+ x (* a %1))
-              y #(* (Math/sin (+ phi0 (* % phi) (* phi off-y))) r)
-              z #(+ h
-                    (* (Math/cos (+ phi0 (* phi off-y) (* %1 phi))) (- r))
-                    (* (Math/sin (+ phi0 (* phi off-y) (* %1 phi))) (- a)))
               pts (for [i (range n)]
-                    {:bl [(fx -1) (y i) (z i)]
-                     :tl [(fx -1) (y (inc i)) (z (inc i))]
-                     :br [(fx 1) (y i) (z i)]
-                     :tr [(fx 1) (y (inc i)) (z (inc i))]})
-              pts (for [plate pts]
-                    (update-values plate (fn [p] (-> p
-                                                     (translate-v [(- x) 0 (- h)])
-                                                     (rotate-v :y (* rot-y (- phi)))
-                                                     (translate-v [x 0 h])
-                                                     (rotate-v :y 0.3)
-                                                     (rotate-v :x 0.1)
-                                                     ))))]
+                    {:bl [a- a- 0]
+                     :tl [a- a 0]
+                     :br [a a- 0]
+                     :tr [a a 0]})
+              pts (for [i (range n)
+                        :let [plate (nth pts i)]]
+                    (update-values
+                     plate
+                     (fn [p]
+                       (-> p
+                           (translate-v [0 0 (- r)])
+                           (rotate-v :y (* rot-y (- phi)))
+                           (rotate-v :x (+ (* phi i (if-not (zero? rot-y) 1.05 1))
+                                           (* phi off-y)
+                                           phi0))
+                           (translate-v [x 0 h])
+                           (rotate-v :y 0.3)
+                           (rotate-v :x 0.1)))))]
           (recur (rest cols) (conj vtxs pts) (+ x off-x)))))))
+
+
+
+(def vtxs (finger-vtxs keyboard-specs))
+
 
 
 (defn thumb-vtxs [specs]
@@ -78,19 +85,19 @@
                                            (row-phi switch-plane-size r)))
                            (rotate-v :y (* -1 (:col p) (row-phi switch-plane-size r)))
                            (translate-v [0 0 r])
-                           (rotate-v :x 0.)
+                           (rotate-v :x -0.1)
                            (rotate-v :y 0.3)
                            (rotate-v :z -0.9)
                            ;; (rotate-v :y -0.4)
-                           (translate-v [-53 -37 29])))))))]
+                           (translate-v [-62
+                                         -35 28])))))))]
     plates))
 
 
-(def vtxs (finger-vtxs keyboard-specs))
+
 (def t-vtxs (thumb-vtxs keyboard-specs))
 
 
-(keyboard vtxs)
 
 (defn  keyplate [vtxs]
   (union
@@ -186,6 +193,39 @@
         faces (mapv #(vec (reverse %)) faces)]
     (polyhedron verts faces)))
 
+(defn switchplate-cleaner [p]
+  (let [
+        b (* 0.5 switch-plane-size)
+        b- (- b)
+        h 3
+        h- (- h)
+        y (normalize-v (mapv - (:tl p) (:bl p)))
+        x (normalize-v (mapv - (:br p) (:bl p)))
+        m (mean-point p)
+        n (normalize-v (cross-p x y))
+        v (fn [a b c]
+            (-> m
+                (translate-v (scale-v x a))
+                (translate-v (scale-v y b))
+                (translate-v (scale-v n c))))
+        verts [(v b- b- 2)
+               (v b b- 2)
+               (v b b 2)
+               (v b- b 2)
+               (v b- b- 14)
+               (v b b- 14)
+               (v b b 14)
+               (v b- b 14)]
+        faces [[0 1 2 3]
+               [4 5 1 0]
+               [7 6 5 4]
+               [5 6 2 1]
+               [6 7 3 2]
+               [7 4 0 3]]
+       ; faces (mapv #(vec (reverse %)) faces)
+        ]
+    (polyhedron verts faces)))
+
 
 
 (defn key-cuttouts [vtxs]
@@ -225,20 +265,18 @@
 
 
 (defn patch [vtxs t-vtxs]
-  (let [c1 (drop-last 3 (first vtxs))
+  (let [c1 (drop-last 2 (first vtxs))
         c2 (reverse (map last t-vtxs))]
     (union
-     (stitch-together
-      (interleave (mapv :bl c1) (mapv :tl c1))
-      (interleave (mapv :tr c2) (mapv :tl c2)))
+      (stitch-together
+                (interleave (mapv :bl c1) (mapv :tl c1))
+                (interleave (mapv :tr c2) (mapv :tl c2)))
      (wall (hull (-> c1 first :bl sp)
                  (-> c2 first :tr sp)))
      (wall (hull (-> c1 last :tl sp)
                  (-> c2 last :tl sp))))))
 
-(patch vtxs t-vtxs)
 
-(keyboard vtxs)
 
 (defn rj-11-socket-holder [vtxs]
   (let [pad 2
@@ -255,7 +293,7 @@
        (translate [0 -1 0])))
      ;(rotate (* -0.5 Math/PI) [1 0 0])
      (translate [(+ bx pad pad (* 0.5 w))
-                 (- by (* 0.5 d))
+                 (- by 5)
                  (* (+ pad pad h) 0.5)]))))
 
 (defn rj-11-cuttout [vtxs]
@@ -263,7 +301,7 @@
     (->>
      (cube 20 15 13)
      ;(rotate (* -0.5 Math/PI) [1 0 0])
-     (translate  [x (- y 12.5) 10]))))
+     (translate  [x (- y 7.5) 10]))))
 
 (defn arduino-holder [vtxs]
   (let [a 36
@@ -278,7 +316,7 @@
       (->>
        (cube a 13 b)
        (translate [0 (- pad) 0])))   
-     (translate [(+ 2 x) (- y case-thickness) (* h 0.5)]))))        
+     (translate [(+ 2 x) (- y case-thickness 3) (* h 0.5)]))))        
 
 (defn arduino-usb-cuttout [vtxs]
   (let [[x y z]  (-> vtxs first last :tl)]
@@ -291,11 +329,12 @@
   (difference
    (union
     (keyplate vtxs)
-    (walls vtxs [0 2 0 0])
+    (walls vtxs [0 3 0 0])
     (thumb-cluster)
     (patch vtxs t-vtxs)
     (rj-11-socket-holder vtxs)
     (arduino-holder vtxs))
+   (switchplate-cleaner (-> t-vtxs last last))
    (key-cuttouts t-vtxs)
    (key-cuttouts vtxs)
    (rj-11-cuttout vtxs)
