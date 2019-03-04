@@ -5,21 +5,21 @@
           [smue-keyboard.utils :refer :all]))
 
 
-
-
 (def keyboard-specs
-  {:fingers [{:r 95 :n 5 :off-x 0 :off-y 0 :rot-y -1.15}
+  {:fingers [{:r 95 :n 4 :off-x 0 :off-y 0.5 :rot-y -1}
              {:r 95 :n 5 :off-x 22 :off-y 0 :rot-y 0}
              {:r 98 :n 5 :off-x 22 :off-y 0.5 :rot-y 0}
              {:r 96 :n 5 :off-x 22 :off-y 0.3 :rot-y 0}
              {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 0}
-             {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 1.2}]
+             {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 1}]
    
-   :thumb [[{:col 0 :row 0 :off-y -0.5}
-            {:col 0 :row 1 :off-y -0.5}
-            {:col 0 :row 2 :off-y -0.5}]
+   :thumb [[{:col 0 :row 0 :off-y -1.}
+            {:col 0 :row 1 :off-y -1.}
+            {:col 0 :row 2 :off-y -1.}]
            [{:col 1.3 :row 0 :off-y 0}
             {:col 1.3 :row 1 :off-y 0}]]})
+
+
 
 
 (defn finger-vtxs [specs]
@@ -64,11 +64,11 @@
 
 (def vtxs (finger-vtxs keyboard-specs))
 
-
+;; (keyboard vtxs)
 
 (defn thumb-vtxs [specs]
   (let [cols (:thumb specs)
-        b (* 0.5 (inc switch-plane-size))
+        b (* 0.5 (+ 2 switch-plane-size))
         r 50
         plates (vec
                 (for [col cols]
@@ -85,12 +85,11 @@
                                            (row-phi switch-plane-size r)))
                            (rotate-v :y (* -1 (:col p) (row-phi switch-plane-size r)))
                            (translate-v [0 0 r])
-                           (rotate-v :x -0.1)
-                           (rotate-v :y 0.3)
-                           (rotate-v :z -0.9)
+                           ;; (rotate-v :x 0.2)
+                           (rotate-v :y 0.5)
+                           (rotate-v :z -0.8)
                            ;; (rotate-v :y -0.4)
-                           (translate-v [-62
-                                         -35 28])))))))]
+                           (translate-v [-40 -63 29])))))))]
     plates))
 
 
@@ -98,6 +97,7 @@
 (def t-vtxs (thumb-vtxs keyboard-specs))
 
 
+(keyboard vtxs)
 
 (defn  keyplate [vtxs]
   (union
@@ -131,10 +131,12 @@
            acc)))))))
 
 
-(defn walls [vtxs starts]
-  (let [[r l t b] starts
-        waller (fn [col start from-key to-key]
-                 (let [plates (drop start col)]
+(defn walls
+  ([vtxs starts ends]
+   (let [[r l t b] starts
+         [r1 l1 t1 b1] ends
+         waller (fn [col start end from-key to-key]
+                  (let [plates (drop-last end (drop start col))]
                    (union
                     (for [plate plates]
                       (wall (hull (sp (from-key plate))
@@ -148,16 +150,18 @@
                                      (union
                                       (wall (hull (sp (to-key (first ps)))
                                                   (sp (from-key (second ps)))))))))))))
-        wall-right (waller (last vtxs) r :br :tr)
-        wall-top (waller (map last vtxs)  t :tl :tr)
-        wall-bottom (waller (map first vtxs) b :bl :br)
-        wall-left (waller (first vtxs) l :bl :tl)]
+        wall-right (waller (last vtxs) r r1 :br :tr)
+        wall-top (waller (map last vtxs)  t t1 :tl :tr)
+        wall-bottom (waller (map first vtxs) b b1 :bl :br)
+        wall-left (waller (first vtxs) l l1 :bl :tl)]
     (union wall-right
            wall-left
            wall-top
            wall-bottom)))
+  ([vtxs starts]
+   (walls vtxs starts (take (count starts) (repeat 0)))))
 
-;(walls vtxs [0 3 0 0])
+;; (walls vtxs [0 3 0 0])
 
 
 (defn switch-cuttout [p]
@@ -165,7 +169,7 @@
         a- (* -0.5 switch-plane-size)
         b (* 0.5 switch-cuttout-size)
         b- (* -0.5 switch-cuttout-size)
-        h 3
+        h 6
         h- (- h)
         y (normalize-v (mapv - (:tl p) (:bl p)))
         x (normalize-v (mapv - (:br p) (:bl p)))
@@ -239,9 +243,9 @@
 (defn thumb-cluster []
   (union
    (keyplate t-vtxs)
-   (walls t-vtxs [0 0 2 0])))
+   (walls t-vtxs [0 0 2 0] [0 0 0 0])))
 
-
+;; (keyboard vtxs)
 (defn stitch-together [c1 c2]
   (let [[ps1 ps2] (if (< (count c1) (count c2)) [c2 c1] [c1 c2])]
     (loop [faces []
@@ -265,18 +269,18 @@
 
 
 (defn patch [vtxs t-vtxs]
-  (let [c1 (drop-last 2 (first vtxs))
+  (let [c1 (cons (first (second vtxs)) (drop-last 3 (first vtxs)))
         c2 (reverse (map last t-vtxs))]
     (union
       (stitch-together
-                (interleave (mapv :bl c1) (mapv :tl c1))
+                (interleave (mapv :br c1) (mapv :bl c1))
                 (interleave (mapv :tr c2) (mapv :tl c2)))
-     (wall (hull (-> c1 first :bl sp)
-                 (-> c2 first :tr sp)))
-     (wall (hull (-> c1 last :tl sp)
-                 (-> c2 last :tl sp))))))
+      (wall (hull (-> c2 first :tr sp)
+                  (-> vtxs second first :br sp)))
+      (wall (hull (-> vtxs (nth 2) first :bl sp)
+                  (-> vtxs second first :br sp))))))
 
-
+(keyboard vtxs)
 
 (defn rj-11-socket-holder [vtxs]
   (let [pad 2
@@ -329,12 +333,15 @@
   (difference
    (union
     (keyplate vtxs)
-    (walls vtxs [0 3 0 0])
+    (walls vtxs [0 0 0 2])
+    ;; (walls vtxs [0 1 0 2])
     (thumb-cluster)
     (patch vtxs t-vtxs)
     (rj-11-socket-holder vtxs)
     (arduino-holder vtxs))
-   (switchplate-cleaner (-> t-vtxs last last))
+   ;; (switchplate-cleaner (-> t-vtxs last last))
+   (switchplate-cleaner (-> t-vtxs first last))
+   ;; (switchplate-cleaner (-> vtxs first first))
    (key-cuttouts t-vtxs)
    (key-cuttouts vtxs)
    (rj-11-cuttout vtxs)
