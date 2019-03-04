@@ -326,8 +326,37 @@
   (let [[x y z]  (-> vtxs first last :tl)]
     (->>
      (cube 10 8 15)
-          (translate [x (- y 5) 12.5]))))
+     (translate [x (- y 5) 12.5]))))
 
+
+
+(defn mounting-hole-vtxs [vtxs t-vtxs]
+  (let [vtx (fn [pt dx dy] [(+ dx (first pt)) (+ dy (second pt)) 0])]
+    [(vtx (->> vtxs first first :bl) -4 2)
+     (vtx (->> vtxs last first :br) -4 2)
+     (vtx (->> vtxs last last :tr) -4 -2)
+     (vtx (->> (nth vtxs 3) first :bl) 0 3.5)
+     (vtx (->> (nth vtxs 2) last :tr) 0 -3.5)
+     (vtx (->> t-vtxs first first :bl) 3.5 0)
+     (vtx (->> t-vtxs second first :br) 1 5)
+     (vtx (->> vtxs first last :bl) 4 5)]))
+
+(def mh-vtxs
+  (mounting-hole-vtxs vtxs t-vtxs))
+
+(defn mounts []
+  (let [ball (->> (sphere 4) (translate [0 0 8]))
+        hole (hull
+              ball
+              (->> ball (project) (extrude-linear {:height 0.001})))]
+    (union
+     (for [vtx mh-vtxs]
+       (->> hole (translate vtx))))))
+
+(defn mounting-holes []
+  (union
+   (for [vtx mh-vtxs]
+     (->> (cylinder [2.1 2.1] 5) (translate vtx)))))
 
 (defn keyboard [vtxs]  
   (difference
@@ -338,13 +367,15 @@
     (thumb-cluster)
     (patch vtxs t-vtxs)
     (rj-11-socket-holder vtxs)
-    (arduino-holder vtxs))
+    (arduino-holder vtxs)
+    (mounts))
    ;; (switchplate-cleaner (-> t-vtxs last last))
    (switchplate-cleaner (-> t-vtxs first last))
    ;; (switchplate-cleaner (-> vtxs first first))
    (key-cuttouts t-vtxs)
    (key-cuttouts vtxs)
    (rj-11-cuttout vtxs)
+   (mounting-holes)
    (arduino-usb-cuttout vtxs)))
 
 
