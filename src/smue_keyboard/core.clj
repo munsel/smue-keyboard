@@ -6,12 +6,12 @@
 
 
 (def keyboard-specs
-  {:fingers [{:r 95 :n 4 :off-x 0 :off-y 0.5 :rot-y -1}
-             {:r 95 :n 5 :off-x 22 :off-y 0 :rot-y 0}
-             {:r 98 :n 5 :off-x 22 :off-y 0.5 :rot-y 0}
-             {:r 96 :n 5 :off-x 22 :off-y 0.3 :rot-y 0}
-             {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 0}
-             {:r 89 :n 5 :off-x 0 :off-y 0 :rot-y 1}]
+  {:fingers [{:r 47 :n 4 :off-x 0 :off-y 0.5 :rot-y -1}
+             {:r 47 :n 5 :off-x 22 :off-y 0 :rot-y 0}
+             {:r 48 :n 5 :off-x 22 :off-y 0.5 :rot-y 0}
+             {:r 48 :n 5 :off-x 22 :off-y 0.3 :rot-y 0}
+             {:r 44 :n 5 :off-x 0 :off-y 0 :rot-y 0}
+             {:r 44 :n 5 :off-x 0 :off-y 0 :rot-y 1}]
    
    :thumb [[{:col 0 :row 0 :off-y -1.}
             {:col 0 :row 1 :off-y -1.}
@@ -20,11 +20,11 @@
             {:col 1.3 :row 1 :off-y 0}]]})
 
 
-
-
 (defn finger-vtxs [specs]
   (let [a (* 0.5 switch-plane-size)
         a- (- a)
+        keycap-size 15
+        keycap-height 16
         h (+ 22 (reduce max (map :r (:fingers specs))))]
     (loop [cols (:fingers specs)
            vtxs '() 
@@ -37,34 +37,31 @@
                off-x :off-x
                off-y :off-y
                rot-y :rot-y} col
-              phi (row-phi switch-plane-size r)
+              phi (row-phi (+ 2 keycap-size) r)
               phi0 (* phi n -0.5)
-              pts (for [i (range n)]
-                    {:bl [a- a- 0]
-                     :tl [a- a 0]
-                     :br [a a- 0]
-                     :tr [a a 0]})
+              pts (for [i (range n)] raw-plate-vtxs)
               pts (for [i (range n)
                         :let [plate (nth pts i)]]
                     (update-values
                      plate
                      (fn [p]
                        (-> p
-                           (translate-v [0 0 (- r)])
+                           (translate-v [0 0 (- (+ keycap-height r))])
                            (rotate-v :y (* rot-y (- phi)))
                            (rotate-v :x (+ (* phi i (if-not (zero? rot-y) 1.05 1))
                                            (* phi off-y)
                                            phi0))
-                           (translate-v [x 0 h])
-                           (rotate-v :y 0.3)
-                           (rotate-v :x 0.1)))))]
+                           (translate-v [x 0 (+ keycap-height h)])
+                            (rotate-v :y 0.3)
+                            (rotate-v :x 0.1) 
+                           ))))]
           (recur (rest cols) (conj vtxs pts) (+ x off-x)))))))
-
-
 
 (def vtxs (finger-vtxs keyboard-specs))
 
 ;; (keyboard vtxs)
+
+(keycaps vtxs t-vtxs)
 
 (defn thumb-vtxs [specs]
   (let [cols (:thumb specs)
@@ -97,7 +94,7 @@
 (def t-vtxs (thumb-vtxs keyboard-specs))
 
 
-(keyboard vtxs)
+;; (keyboard vtxs)
 
 (defn  keyplate [vtxs]
   (union
@@ -197,6 +194,7 @@
         faces (mapv #(vec (reverse %)) faces)]
     (polyhedron verts faces)))
 
+
 (defn switchplate-cleaner [p]
   (let [
         b (* 0.5 switch-plane-size)
@@ -280,7 +278,7 @@
       (wall (hull (-> vtxs (nth 2) first :bl sp)
                   (-> vtxs second first :br sp))))))
 
-(keyboard vtxs)
+;; (keyboard vtxs)
 
 (defn rj-11-socket-holder [vtxs]
   (let [pad 2
@@ -364,6 +362,7 @@
     (keyplate vtxs)
     (walls vtxs [0 0 0 2])
     ;; (walls vtxs [0 1 0 2])
+    (keycaps vtxs t-vtxs)
     (thumb-cluster)
     (patch vtxs t-vtxs)
     (rj-11-socket-holder vtxs)

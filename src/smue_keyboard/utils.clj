@@ -1,13 +1,18 @@
 (ns smue-keyboard.utils
   (:require [scad-clj.scad :refer :all]
-            [scad-clj.model :refer :all]))
+            [scad-clj.model :refer :all]
+            [uncomplicate.neanderthal
+             [native :refer [dge dgb dgd factory-by-type]]
+             [core :refer :all :exclude [vdot sp] ;[mm nrm2 trans mv mm submatrix transfer!]
+              ]
+             [linalg :refer [svd svd! det trf]]]))
 
 
 
 (def switch-cuttout-size 14.3)
 (def switch-plane-size 21)
-(def case-thickness 4)
-(def r  (* 0.5 case-thickness))
+(def case-thickness 4) 
+(def r (* 0.5 case-thickness))
 
 
 (defn acrd
@@ -45,12 +50,10 @@
   (mapv + v voff))
 
 
-
-(defn dot
-  "dot product of two vectors"
-  [v1 v2]
-  (reduce + (mapv * v1 v2)))
-
+;; (defn dot
+;;   "dot product of two vectors"
+;;   [v1 v2]
+;;   (reduce + (mapv * v1 v2)))
 
 
 (defn vmdot
@@ -58,7 +61,6 @@
   [v m]
   (vec (for [i (range (count v))]
          (reduce + (map * v (map #(nth % i) m))))))
-
 
 
 (defn mvdot
@@ -87,6 +89,9 @@
      (- (* a1 b2) (* a2 b1))]))
 
 
+(defn mean-point [plate]
+  (mapv (partial * 0.25) (mapv + (:bl plate) (:tl plate) (:br plate) (:tr plate))))
+
 
 (defn update-values
   "this updates each entry of a map with a given function"
@@ -94,9 +99,41 @@
   (reduce (fn [r [k v]] (assoc r k (apply f v args))) {} m))
 
 
+(def raw-plate-vtxs (let [a (* 0.5 switch-plane-size)
+                     a- (- a)]
+                 {:bl [a- a- 0]
+                  :tl [a- a 0]
+                  :br [a a- 0]
+                  :tr [a a 0]}))
 
-(defn mean-point [plate]
-  (mapv (partial * 0.25) (mapv + (:bl plate) (:tl plate) (:br plate) (:tr plate))))
+(def raw-plate (hull
+                (sp (:bl raw-plate-vtxs))
+                (sp (:tl raw-plate-vtxs))
+                (sp (:br raw-plate-vtxs))
+                (sp (:tr raw-plate-vtxs))))
+
+
+(defn kabsch-algo [plate]
+  (let [mean (mean-point plate)
+        plate (update-values plate #(mapv - % mean))
+        P (dge (vec (vals plate)))
+        Q (dge (vec (vals raw-plate-vtxs)))
+        H (mm (trans P) Q)
+        usvt (svd H true true)
+        V (trans (:vt usvt))
+        Ut (trans (:u usvt))
+        S (:sigma usvt)
+        d (det (trf (mm V Ut)))
+        T (dge [[1 0 0] [0 1 0] [0 0 d]])
+        R (mm (mm V T) Ut)
+        Tr (dge 4 4 (concat (repeat 15 0) '(1)))]
+    (do (copy! (trans R) (submatrix Tr 3 3)) Tr)))
+
+;; (kabsch-algo testplate)
+
+(defn plate-R [plate]
+  (let [rvs (rows (kabsch-algo plate))]
+    (mapv #(mapv identity %) rvs)))
 
 (defn mean [vectors]
   (mapv #(/ % (count vectors))
@@ -114,7 +151,7 @@
 (defn scale-v [v s]
   (mapv (partial * s) v))
 
-(scale-v [1 2 3] 2)
+;; (scale-v [1 2 3] 2)
 
 (defn dihedral-angle [b1 b2 dim]
   (let [b3 (dim
@@ -150,73 +187,51 @@
         key-cap (hull
                  (->> (minkowski (square a1 a1) (with-fn 30 (circle r)))
                       (extrude-linear {:height 0.5}))
-                      (->> (with-fn 30 (sphere r))
-                           (translate [(- (* a1 0.5) off-x)
-                                       (* a1 0.5)
-                                       (dec h)]))
-                      (->> (with-fn 30 (sphere r))
-                           (translate [(+ off-x (* a1 -0.5))
-                                       (* a1 0.5)
-                                       (dec h)]))
-                      (->> (with-fn 30 (sphere r))
-                           (translate [(- (* a1 0.5) off-x)
-                                       (+ (* a1 -0.5) off-y)
-                                       (dec h)]))
-                      (->> (with-fn 30 (sphere r))
-                           (translate [(+ off-x (* a1 -0.5))
-                                       (+ (* a1 -0.5) off-y)
-                                       (dec h)])))]
+                 (->> (with-fn 30 (sphere r))
+                      (translate [(- (* a1 0.5) off-x)
+                                  (* a1 0.5)
+                                  (dec h)]))
+                 (->> (with-fn 30 (sphere r))
+                      (translate [(+ off-x (* a1 -0.5))
+                                  (* a1 0.5)
+                                  (dec h)]))
+                 (->> (with-fn 30 (sphere r))
+                      (translate [(- (* a1 0.5) off-x)
+                                  (+ (* a1 -0.5) off-y)
+                                  (dec h)]))
+                 (->> (with-fn 30 (sphere r))
+                      (translate [(+ off-x (* a1 -0.5))
+                                  (+ (* a1 -0.5) off-y)
+                                  (dec h)])))]
     (->> (difference
           key-cap
           (->> (with-fn 150 (cylinder [30 30] 22))
                (translate [0 41 0])
                (rotate (* 0.5 Math/PI) [1 0 0])
                ))
-         (rotate Math/PI [0 0 1])
+         ;; (rotate Math/PI [0 0 1])
          (translate [0 0 (+ 5 case-thickness)])
-         (rotate Math/PI [1 0 0])
-         (color [220/255 215/255 220/255 1]))))
+         (rotate Math/PI [0 1 0])
+         ;; (rotate Math/PI [1 0 0])
+         (color [220/255 200/255 220/255 1]))))
 
 
-(defn keyplate-stamp [vtxs]
-  (let [baseplates (for [col vtxs
-                         p col]
-                     (hull
-                      (->> (union (sp (:br p))
-                                  (sp (:tl p))
-                                  (sp (:bl p))
-                                  (sp (:tr p)))
-                           (translate [0 0 200] ))
-                      (sp (:br p))
-                      (sp (:tl p))
-                      (sp (:bl p))
-                      (sp (:tr p))))
-        intersections (loop [cols vtxs
-                             acc []]
-                        (if (= 1 (count cols))
-                          acc
-                          (let [a (first cols)
-                                b (second cols)
-                                amax (count a)
-                                bmax (count b)
-                                n-iter (max amax bmax)]
-                            (recur
-                             (rest cols)
-                             (cons
-                              (for [i (range n-iter)]
-                                (let [pa (nth a (min (dec amax) i))
-                                      pb (nth b (min (dec bmax) i))]
-                                  (hull
-                                   (->> (union
-                                         (sp (:bl pb))
-                                         (sp (:tl pb))
-                                         (sp (:br pa))
-                                         (sp (:tr pa)))
-                                        (translate [0 0 200]))
-                                   (sp (:bl pb))
-                                   (sp (:tl pb))
-                                   (sp (:br pa))
-                                   (sp (:tr pa)))))
-                              acc)))))]
-    (union
-     baseplates intersections)))
+
+(defn keycaps [vtxs t-vtxs]
+  (for [col (concat t-vtxs vtxs)]
+    (for [plate col]
+      (->> cap
+           (multmatrix (plate-R plate))
+           (translate (mean-point plate))
+           ))))
+
+
+(defn approxed-keyplates [vtxs t-vtxs]
+  (for [col (concat t-vtxs vtxs)]
+    (for [plate col]
+      (->> raw-plate
+           (multmatrix (plate-R plate))
+           (translate (mean-point plate))))))
+
+
+
