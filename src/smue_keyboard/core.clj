@@ -53,15 +53,16 @@
                                            phi0))
                            (translate-v [x 0 (+ keycap-height h)])
                             (rotate-v :y 0.3)
-                            (rotate-v :x 0.1) 
+                            (rotate-v :x 0.5)
+                            (translate-v [0 8 12])
                            ))))]
           (recur (rest cols) (conj vtxs pts) (+ x off-x)))))))
 
 (def vtxs (finger-vtxs keyboard-specs))
 
-;; (keyboard vtxs)
+(keyboard vtxs)
 
-(keycaps vtxs t-vtxs)
+;; (keycaps vtxs t-vtxs)
 
 (defn thumb-vtxs [specs]
   (let [cols (:thumb specs)
@@ -86,7 +87,7 @@
                            (rotate-v :y 0.5)
                            (rotate-v :z -0.8)
                            ;; (rotate-v :y -0.4)
-                           (translate-v [-40 -63 29])))))))]
+                           (translate-v [-40 -67 29])))))))]
     plates))
 
 
@@ -98,6 +99,13 @@
 
 (defn  keyplate [vtxs]
   (union
+   (for [col vtxs
+         p col]
+     (hull
+      (sp (:br p))
+      (sp (:tl p))
+      (sp (:bl p))
+      (sp (:tr p))))
    (for [col vtxs
          p col]
      (hull
@@ -128,37 +136,76 @@
            acc)))))))
 
 
+
+(map (fn [a b] [a b]) (range 10) (range 10))
+
 (defn walls
-  ([vtxs starts ends]
+  ([vtxs starts ends thumb?]
    (let [[r l t b] starts
          [r1 l1 t1 b1] ends
          waller (fn [col start end from-key to-key]
                   (let [plates (drop-last end (drop start col))]
-                   (union
-                    (for [plate plates]
-                      (wall (hull (sp (from-key plate))
-                                  (sp (to-key plate)))))
-                    (loop [ps plates
-                           acc '()]
-                      (if (>= 1 (count ps))
-                        acc
-                        (recur (rest ps)
-                               (conj acc
-                                     (union
-                                      (wall (hull (sp (to-key (first ps)))
-                                                  (sp (from-key (second ps)))))))))))))
+                    (union
+                     (for [plate plates]
+                       (wall (hull (sp (from-key plate))
+                                   (sp (to-key plate)))))
+                     (loop [ps plates
+                            acc '()]
+                       (if (>= 1 (count ps))
+                         acc
+                         (recur (rest ps)
+                                (conj acc
+                                      (union
+                                       (wall (hull (sp (to-key (first ps)))
+                                                   (sp (from-key (second ps)))))))))))))
+         wall-top (let [plates (map last vtxs)
+                        ymax (+ 5 (apply max (map #(nth (:tl %) 1) plates)))
+                        off (fn [[x y z]] [x (+ 5 y) z])]
+                    (union
+                     (for [plate plates]
+                       (hull (sp (:tl plate))
+                             (sp (:tr plate))
+                             (sp (off (:tl plate)))
+                             (sp (off (:tr plate)))))
+                     (for [plate plates]
+                       (wall
+                        (hull (sp (off (:tl plate)))
+                              (sp (off (:tr plate))))))
+                     (loop [ps plates
+                            acc '()]
+                       (if (>= 1 (count ps))
+                         acc
+                         (recur (rest ps)
+                                (conj acc
+                                      (union
+                                       (wall (hull (sp (off (:tr (first ps))))
+                                                   (sp (off (:tl (second ps))))))
+                                       (hull (sp (off (:tr (first ps))))
+                                             (sp (off (:tl (second ps))))
+                                             (sp (:tr (first ps)))
+                                             (sp (:tl (second ps)))))))))
+                     (wall
+                      (hull (-> plates last :tr sp)
+                            (-> plates last :tr off sp)))
+                     (wall
+                      (hull (-> plates first :tl sp)
+                            (-> plates first :tl off sp)))))
         wall-right (waller (last vtxs) r r1 :br :tr)
-        wall-top (waller (map last vtxs)  t t1 :tl :tr)
+        wall-top-thumb (waller (map last vtxs)  t t1 :tl :tr)
         wall-bottom (waller (map first vtxs) b b1 :bl :br)
         wall-left (waller (first vtxs) l l1 :bl :tl)]
     (union wall-right
            wall-left
-           wall-top
+           (if thumb? wall-top-thumb wall-top)
            wall-bottom)))
   ([vtxs starts]
-   (walls vtxs starts (take (count starts) (repeat 0)))))
+   (walls vtxs starts (take (count starts) (repeat 0)) false))
+  ([vtxs starts ends]
+   (walls vtxs starts ends false)))
 
+(keyboard vtxs)
 ;; (walls vtxs [0 3 0 0])
+
 
 
 (defn switch-cuttout [p]
@@ -241,7 +288,7 @@
 (defn thumb-cluster []
   (union
    (keyplate t-vtxs)
-   (walls t-vtxs [0 0 2 0] [0 0 0 0])))
+   (walls t-vtxs [0 0 2 0] [0 0 0 0] true)))
 
 ;; (keyboard vtxs)
 (defn stitch-together [c1 c2]
@@ -330,17 +377,19 @@
 
 (defn mounting-hole-vtxs [vtxs t-vtxs]
   (let [vtx (fn [pt dx dy] [(+ dx (first pt)) (+ dy (second pt)) 0])]
-    [(vtx (->> vtxs first first :bl) -4 2)
-     (vtx (->> vtxs last first :br) -4 2)
-     (vtx (->> vtxs last last :tr) -4 -2)
+    [(vtx (->> vtxs first first :bl) -4 4)
+     (vtx (->> vtxs last first :br) -4 1)
+     (vtx (->> vtxs last last :tr) -3.5 3.5)
      (vtx (->> (nth vtxs 3) first :bl) 0 3.5)
-     (vtx (->> (nth vtxs 2) last :tr) 0 -3.5)
+     (vtx (->> (nth vtxs 2) last :tr) 0 3)
      (vtx (->> t-vtxs first first :bl) 3.5 0)
      (vtx (->> t-vtxs second first :br) 1 5)
-     (vtx (->> vtxs first last :bl) 4 5)]))
+     (vtx (->> vtxs first last :bl) 4 4)]))
 
 (def mh-vtxs
   (mounting-hole-vtxs vtxs t-vtxs))
+
+(keyboard vtxs)
 
 (defn mounts []
   (let [ball (->> (sphere 4) (translate [0 0 8]))
