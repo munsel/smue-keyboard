@@ -9,7 +9,7 @@
 
 
 
-(def switch-cuttout-size 14.3)
+(def switch-cuttout-size 14.1)
 (def switch-plane-size 21)
 (def case-thickness 4) 
 (def r (* 0.5 case-thickness))
@@ -112,7 +112,7 @@
                 (sp (:br raw-plate-vtxs))
                 (sp (:tr raw-plate-vtxs))))
 
-
+ 
 (defn kabsch-algo [plate]
   (let [mean (mean-point plate)
         plate (update-values plate #(mapv - % mean))

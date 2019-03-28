@@ -60,10 +60,6 @@
 
 (def vtxs (finger-vtxs keyboard-specs))
 
-(keyboard vtxs)
-
-;; (keycaps vtxs t-vtxs)
-
 (defn thumb-vtxs [specs]
   (let [cols (:thumb specs)
         b (* 0.5 (+ 2 switch-plane-size))
@@ -107,12 +103,22 @@
       (sp (:bl p))
       (sp (:tr p))))
    (for [col vtxs
-         p col]
+         [p1 p2] (map (fn [b1 b2] [b1 b2]) (drop-last  col) (rest col))]
      (hull
-      (sp (:br p))
-      (sp (:tl p))
-      (sp (:bl p))
-      (sp (:tr p))))
+      (sp (:br p2))
+      (sp (:tl p1))
+      (sp (:bl p2))
+      (sp (:tr p1))))
+   (let [mixer (fn [a1 a2] [a1 a2])]
+     (for [[col1 col2] (map mixer(drop-last vtxs) (rest vtxs))
+           [[p1 p2] [p3 p4]] (map mixer
+                                  (mapv mixer (drop-last  col1) (rest col1))
+                                  (mapv mixer (drop-last  col2) (rest col2)))]
+       (hull
+        (sp (:br p2))
+        (sp (:tl p3))
+        (sp (:bl p4))
+        (sp (:tr p1)))))
    (loop [cols vtxs
           acc []]
      (if (= 1 (count cols))
@@ -135,9 +141,6 @@
                 (sp (:tr pa)))))
            acc)))))))
 
-
-
-(map (fn [a b] [a b]) (range 10) (range 10))
 
 (defn walls
   ([vtxs starts ends thumb?]
@@ -203,8 +206,7 @@
   ([vtxs starts ends]
    (walls vtxs starts ends false)))
 
-(keyboard vtxs)
-;; (walls vtxs [0 3 0 0])
+
 
 
 
@@ -213,7 +215,7 @@
         a- (* -0.5 switch-plane-size)
         b (* 0.5 switch-cuttout-size)
         b- (* -0.5 switch-cuttout-size)
-        h 6
+        h 4
         h- (- h)
         y (normalize-v (mapv - (:tl p) (:bl p)))
         x (normalize-v (mapv - (:br p) (:bl p)))
@@ -334,7 +336,7 @@
         d 21
         [bx by bz] (-> vtxs first drop-last last :tl)
         ]
-    (->>
+    (->>b
      (difference
       (cube (+ d pad) (+ pad w) (+ pad pad h))
       (->>
@@ -364,14 +366,15 @@
       (cube w 9 h)
       (->>
        (cube a 13 b)
-       (translate [0 (- pad) 0])))   
-     (translate [(+ 2 x) (- y case-thickness 3) (* h 0.5)]))))        
+       (translate [0 (- pad) 0])))
+     (rotate 0.3 [0 0 1])
+     (translate [(+ 2 x) (- y 2) (* h 0.5)]))))        
 
 (defn arduino-usb-cuttout [vtxs]
   (let [[x y z]  (-> vtxs first last :tl)]
     (->>
      (cube 10 8 15)
-     (translate [x (- y 5) 12.5]))))
+     (translate [x (- y 0) 12.5]))))
 
 
 
@@ -380,16 +383,16 @@
     [(vtx (->> vtxs first first :bl) -4 4)
      (vtx (->> vtxs last first :br) -4 1)
      (vtx (->> vtxs last last :tr) -3.5 3.5)
-     (vtx (->> (nth vtxs 3) first :bl) 0 3.5)
-     (vtx (->> (nth vtxs 2) last :tr) 0 3)
+     (vtx (->> (nth vtxs 3) first :bl) 1 3.5)
+     (vtx (->> (nth vtxs 2) last :tr) 0 2)
      (vtx (->> t-vtxs first first :bl) 3.5 0)
      (vtx (->> t-vtxs second first :br) 1 5)
-     (vtx (->> vtxs first last :bl) 4 4)]))
+     (vtx (->> vtxs first last :bl) 5 6)]))
 
 (def mh-vtxs
   (mounting-hole-vtxs vtxs t-vtxs))
 
-(keyboard vtxs)
+
 
 (defn mounts []
   (let [ball (->> (sphere 4) (translate [0 0 8]))
@@ -411,7 +414,7 @@
     (keyplate vtxs)
     (walls vtxs [0 0 0 2])
     ;; (walls vtxs [0 1 0 2])
-    (keycaps vtxs t-vtxs)
+    ;; (keycaps vtxs t-vtxs)
     (thumb-cluster)
     (patch vtxs t-vtxs)
     (rj-11-socket-holder vtxs)
@@ -427,7 +430,7 @@
    (arduino-usb-cuttout vtxs)))
 
 
-(keyboard vtxs)
+;; (keyboard vtxs)
 
 (def right-hand
   (keyboard vtxs))
