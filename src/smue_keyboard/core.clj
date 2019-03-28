@@ -90,7 +90,6 @@
 
 (def t-vtxs (thumb-vtxs keyboard-specs))
 
-
 ;; (keyboard vtxs)
 
 (defn  keyplate [vtxs]
@@ -119,7 +118,7 @@
         (sp (:tl p3))
         (sp (:bl p4))
         (sp (:tr p1)))))
-   (loop [cols vtxs
+   (loop [cols (update-in vtxs [1] rest)
           acc []]
      (if (= 1 (count cols))
        acc
@@ -134,11 +133,15 @@
            (for [i (range n-iter)]
              (let [pa (nth a (min (dec amax) i))
                    pb (nth b (min (dec bmax) i))]
-               (hull
-                (sp (:bl pb))
-                (sp (:tl pb))
-                (sp (:br pa))
-                (sp (:tr pa)))))
+               (union
+                (hull
+                 (sp (:bl pb))
+                 (sp (:br pa))
+                 (sp (:tr pa)))
+                (hull
+                 (sp (:tr pa))
+                 (sp (:bl pb))
+                 (sp (:tl pb))))))
            acc)))))))
 
 
@@ -327,7 +330,7 @@
       (wall (hull (-> vtxs (nth 2) first :bl sp)
                   (-> vtxs second first :br sp))))))
 
-;; (keyboard vtxs)
+
 
 (defn rj-11-socket-holder [vtxs]
   (let [pad 2
@@ -391,8 +394,6 @@
 
 (def mh-vtxs
   (mounting-hole-vtxs vtxs t-vtxs))
-
-
 
 (defn mounts []
   (let [ball (->> (sphere 4) (translate [0 0 8]))
