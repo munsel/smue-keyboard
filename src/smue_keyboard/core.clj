@@ -2,7 +2,8 @@
 (:refer-clojure :exclude [use import])
 (:require [scad-clj.scad :refer :all]
           [scad-clj.model :refer :all]
-          [smue-keyboard.utils :refer :all]))
+          [smue-keyboard.utils :refer :all])
+(:use [clojure.java.shell :only [sh]]))
 
 
 (def keyboard-specs
@@ -166,17 +167,20 @@
                                                    (sp (from-key (second ps)))))))))))))
          wall-top (let [plates (map last vtxs)
                         ymax (+ 5 (apply max (map #(nth (:tl %) 1) plates)))
-                        off (fn [[x y z]] [x (+ 5 y) z])]
+                        off (fn [k plate]
+                              (translate-v
+                               (scale-v (normalized-normal-v plate) 5)
+                               (k plate)))]
                     (union
                      (for [plate plates]
                        (hull (sp (:tl plate))
                              (sp (:tr plate))
-                             (sp (off (:tl plate)))
-                             (sp (off (:tr plate)))))
+                             (sp (off :tl plate))
+                             (sp (off :tr plate))))
                      (for [plate plates]
                        (wall
-                        (hull (sp (off (:tl plate)))
-                              (sp (off (:tr plate))))))
+                        (hull (sp (off :tl plate))
+                              (sp (off :tr plate)))))
                      (loop [ps plates
                             acc '()]
                        (if (>= 1 (count ps))
@@ -184,18 +188,18 @@
                          (recur (rest ps)
                                 (conj acc
                                       (union
-                                       (wall (hull (sp (off (:tr (first ps))))
-                                                   (sp (off (:tl (second ps))))))
-                                       (hull (sp (off (:tr (first ps))))
-                                             (sp (off (:tl (second ps))))
+                                       (wall (hull (sp (off :tr (first ps)))
+                                                   (sp (off :tl (second ps)))))
+                                       (hull (sp (off :tr (first ps)))
+                                             (sp (off :tl (second ps)))
                                              (sp (:tr (first ps)))
                                              (sp (:tl (second ps)))))))))
                      (wall
                       (hull (-> plates last :tr sp)
-                            (-> plates last :tr off sp)))
+                            (sp  (off :tr (last plates)))))
                      (wall
                       (hull (-> plates first :tl sp)
-                            (-> plates first :tl off sp)))))
+                            (sp (off :tl (first plates)))))))
         wall-right (waller (last vtxs) r r1 :br :tr)
         wall-top-thumb (waller (map last vtxs)  t t1 :tl :tr)
         wall-bottom (waller (map first vtxs) b b1 :bl :br)
@@ -208,9 +212,6 @@
    (walls vtxs starts (take (count starts) (repeat 0)) false))
   ([vtxs starts ends]
    (walls vtxs starts ends false)))
-
-
-
 
 
 (defn switch-cuttout [p]
@@ -339,7 +340,7 @@
         d 21
         [bx by bz] (-> vtxs first drop-last last :tl)
         ]
-    (->>b
+    (->> 
      (difference
       (cube (+ d pad) (+ pad w) (+ pad pad h))
       (->>
@@ -430,8 +431,7 @@
    (mounting-holes)
    (arduino-usb-cuttout vtxs)))
 
-
-;; (keyboard vtxs)
+(keyboard vtxs)
 
 (def right-hand
   (keyboard vtxs))
@@ -446,3 +446,5 @@
 
 (spit "scad_files/left_hand.scad"
       (write-scad left-hand))
+
+;; (sh "openscad -o stl_files/right_hand_smue.stl scad_files/right_hand.scad")

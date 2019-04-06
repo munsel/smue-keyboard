@@ -30,6 +30,11 @@
   (acrd (/ panel-size radius)))
 
 
+(defn sp
+  "returns translated sphere"
+  [tr]
+  (->> (sphere r) (translate tr)))
+
 (defn R
   "rotation matrix"
   [dim phi]
@@ -148,6 +153,12 @@
 
 (assert (= [1.0 0.0 0.0] (normalize-v [2 0 0])))
 
+(defn normalized-normal-v [plate]
+  (let [x (normalize-v (mapv - (:br plate) (:bl plate)))
+        y (normalize-v (mapv - (:tl plate) (:bl plate)))
+        n (normalize-v (cross-p y x))]
+    n))
+
 (defn scale-v [v s]
   (mapv (partial * s) v))
 
@@ -166,10 +177,7 @@
 
 ;; (dihedral-angle [0 1 0] [1 0 0] :z)
 
-(defn sp
-  "returns translated sphere"
-  [tr]
-  (->> (sphere r) (translate tr)))
+
 
 (defn wall [expr]
   (hull expr
