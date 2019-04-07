@@ -345,7 +345,7 @@
        (cube d w h)
        (translate [0 -1 0])))
      ;(rotate (* -0.5 Math/PI) [1 0 0])
-     (translate [(+ bx pad pad (* 0.5 w))
+     (translate [(+ bx (- 2) (* 0.5 w))
                  (- by 5)
                  (* (+ pad pad h) 0.5)]))))
 
@@ -354,7 +354,7 @@
     (->>
      (cube 20 15 13)
      ;(rotate (* -0.5 Math/PI) [1 0 0])
-     (translate  [x (- y 7.5) 10]))))
+     (translate  [(- x 7) (- y 7.5) 10]))))
 
 (defn arduino-holder [vtxs]
   (let [a 36
@@ -370,26 +370,27 @@
        (cube a 13 b)
        (translate [0 (- pad) 0])))
      (rotate 0.3 [0 0 1])
-     (translate [(+ 2 x) (- y 2) (* h 0.5)]))))        
+     (translate [(- x 4) (+ y 0.5) (* h 0.5)]))))
+
+;; (keyboard vtxs)
 
 (defn arduino-usb-cuttout [vtxs]
   (let [[x y z]  (-> vtxs first last :tl)]
     (->>
      (cube 10 8 15)
-     (translate [x (- y 0) 12.5]))))
-
+     (translate [(- x 7) (- y 0) 12.5]))))
 
 
 (defn mounting-hole-vtxs [vtxs t-vtxs]
   (let [vtx (fn [pt dx dy] [(+ dx (first pt)) (+ dy (second pt)) 0])]
     [(vtx (->> vtxs first first :bl) -4 4)
-     (vtx (->> vtxs last first :br) -4 1)
-     (vtx (->> vtxs last last :tr) -3.5 3.5)
-     (vtx (->> (nth vtxs 3) first :bl) 1 3.5)
-     (vtx (->> (nth vtxs 2) last :tr) 0 2)
+     (vtx (->> vtxs last first :br) -2 -3)
+     (vtx (->> vtxs last last :tr) -3.5 5.5)
+     (vtx (->> (nth vtxs 3) first :bl) 0 1)
+     (vtx (->> (nth vtxs 2) last :tr) 0 6)
      (vtx (->> t-vtxs first first :bl) 3.5 0)
      (vtx (->> t-vtxs second first :br) 1 5)
-     (vtx (->> vtxs first last :bl) 5 6)]))
+     (vtx (->> vtxs first last :bl) -3 6)]))
 
 (def mh-vtxs
   (mounting-hole-vtxs vtxs t-vtxs))
@@ -406,7 +407,7 @@
 (defn mounting-holes []
   (union
    (for [vtx mh-vtxs]
-     (->> (cylinder [2.1 2.1] 5) (translate vtx)))))
+     (->> (cylinder [2.1 2.1] 12) (translate vtx)))))
 
 (defn keyboard [vtxs]  
   (difference
