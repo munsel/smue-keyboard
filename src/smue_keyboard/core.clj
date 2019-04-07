@@ -82,16 +82,16 @@
                            (translate-v [0 0 r])
                            ;; (rotate-v :x 0.2)
                            (rotate-v :y 0.5)
-                           (rotate-v :z -0.8)
+                           (rotate-v :z -0.52)
                            ;; (rotate-v :y -0.4)
-                           (translate-v [-40 -67 29])))))))]
+                           (translate-v [-40 -70 29])))))))]
     plates))
 
 
 
 (def t-vtxs (thumb-vtxs keyboard-specs))
 
-;; (keyboard vtxs)
+(keyboard vtxs)
 
 (defn  keyplate [vtxs]
   (union
@@ -113,18 +113,21 @@
      (for [[col1 col2] (map mixer(drop-last vtxs) (rest vtxs))
            [[p1 p2] [p3 p4]] (map mixer
                                   (mapv mixer (drop-last  col1) (rest col1))
-                                  (mapv mixer (drop-last  col2) (rest col2)))]
+                                  (if (> (count col2) (count col1))
+                                    (mapv mixer (drop 1 (drop-last col2)) (drop 2 col2))
+                                    (mapv mixer (drop-last  col2) (rest col2))))]
        (hull
         (sp (:br p2))
         (sp (:tl p3))
         (sp (:bl p4))
         (sp (:tr p1)))))
-   (loop [cols (update-in vtxs [1] rest)
+   (loop [cols vtxs;(update-in vtxs [1] rest)
           acc []]
      (if (= 1 (count cols))
        acc
        (let [a (first cols)
              b (second cols)
+             b (if (> (count b) (count a)) (drop 1 b) b)
              amax (count a)
              bmax (count b)
              n-iter (max amax bmax)]
@@ -150,24 +153,8 @@
   ([vtxs starts ends thumb?]
    (let [[r l t b] starts
          [r1 l1 t1 b1] ends
-         waller (fn [col start end from-key to-key]
-                  (let [plates (drop-last end (drop start col))]
-                    (union
-                     (for [plate plates]
-                       (wall (hull (sp (from-key plate))
-                                   (sp (to-key plate)))))
-                     (loop [ps plates
-                            acc '()]
-                       (if (>= 1 (count ps))
-                         acc
-                         (recur (rest ps)
-                                (conj acc
-                                      (union
-                                       (wall (hull (sp (to-key (first ps)))
-                                                   (sp (from-key (second ps)))))))))))))
          wall-off (fn [plates k1 k2 start end]
                     (let [plates (drop-last end (drop start plates))
-                          ymax (+ 5 (apply max (map #(nth (k1 %) 1) plates)))
                           off (fn [k plate]
                                 (translate-v
                                  (scale-v (normalized-normal-v plate) 10)
@@ -196,21 +183,21 @@
                                                (sp (k2 (first ps)))
                                                (sp (k1 (second ps)))))))))
                        )))
-         wall-right (if thumb? (waller (last vtxs) r r1 :br :tr) (wall-off (last vtxs) :br :tr r r1))
-         wall-top-thumb (waller (map last vtxs)  t t1 :tl :tr)
-         wall-bottom (if thumb? (waller (map first vtxs) b b1 :bl :br) (wall-off (map first vtxs) :bl :br b b1))
-         wall-left (if thumb? (waller (first vtxs) l l1 :bl :tl) (wall-off (first vtxs) :bl :tl t t1))]
+         wall-right (wall-off (last vtxs) :br :tr r r1)
+         wall-bottom (wall-off (map first vtxs) :bl :br b b1)
+         wall-left (wall-off (first vtxs) :bl :tl l l1)
+         wall-top (wall-off (map last vtxs) :tl :tr t t1)]
      (union wall-right
             wall-left
-            (if thumb? wall-top-thumb (wall-off (map last vtxs) :tl :tr t t1))
-           wall-bottom)))
+            wall-top
+            wall-bottom)))
   ([vtxs starts]
    (walls vtxs starts (take (count starts) (repeat 0)) false))
   ([vtxs starts ends]
    (walls vtxs starts ends false)))
 
 
-;; (keyboard vtxs)
+(keyboard vtxs)
 
 (defn switch-cuttout [p]
   (let [a (* 0.5 switch-plane-size)
@@ -275,7 +262,7 @@
                [5 6 2 1]
                [6 7 3 2]
                [7 4 0 3]]
-       ; faces (mapv #(vec (reverse %)) faces)
+                                        ; faces (mapv #(vec (reverse %)) faces)
         ]
     (polyhedron verts faces)))
 
@@ -291,10 +278,12 @@
 
 (defn thumb-cluster []
   (union
-   (keyplate t-vtxs)
-   (walls t-vtxs [0 0 2 0] [0 0 0 0] true)))
+   (keyplate ;(update-in t-vtxs [0] rest)
+    t-vtxs)
+   (walls t-vtxs [0 0 2 0] [1 0 0 0] true)))
 
-;; (keyboard vtxs)
+(keyboard vtxs)
+
 (defn stitch-together [c1 c2]
   (let [[ps1 ps2] (if (< (count c1) (count c2)) [c2 c1] [c1 c2])]
     (loop [faces []
@@ -321,14 +310,13 @@
   (let [c1 (cons (first (second vtxs)) (drop-last 3 (first vtxs)))
         c2 (reverse (map last t-vtxs))]
     (union
-      (stitch-together
-                (interleave (mapv :br c1) (mapv :bl c1))
-                (interleave (mapv :tr c2) (mapv :tl c2)))
-      (wall (hull (-> c2 first :tr sp)
-                  (-> vtxs second first :br sp)))
-      (wall (hull (-> vtxs (nth 2) first :bl sp)
-                  (-> vtxs second first :br sp))))))
-
+     (stitch-together
+      (interleave (mapv :br c1) (mapv :bl c1))
+      (interleave (mapv :tr c2) (mapv :tl c2)))
+     (wall (hull (-> c2 first :tr sp)
+                 (-> vtxs second first :br sp)))
+     (wall (hull (-> vtxs (nth 2) first :bl sp)
+                 (-> vtxs second first :br sp))))))
 
 
 (defn rj-11-socket-holder [vtxs]
@@ -344,7 +332,7 @@
       (->>
        (cube d w h)
        (translate [0 -1 0])))
-     ;(rotate (* -0.5 Math/PI) [1 0 0])
+                                        ;(rotate (* -0.5 Math/PI) [1 0 0])
      (translate [(+ bx (- 2) (* 0.5 w))
                  (- by 5)
                  (* (+ pad pad h) 0.5)]))))
@@ -353,7 +341,7 @@
   (let [[x y z] (-> vtxs first drop-last last :tl)]
     (->>
      (cube 20 15 13)
-     ;(rotate (* -0.5 Math/PI) [1 0 0])
+                                        ;(rotate (* -0.5 Math/PI) [1 0 0])
      (translate  [(- x 7) (- y 7.5) 10]))))
 
 (defn arduino-holder [vtxs]
@@ -413,11 +401,11 @@
   (difference
    (union
     (keyplate vtxs)
-    (walls vtxs [0 0 0 2])
+    (walls vtxs [0 1 0 1])
     ;; (walls vtxs [0 1 0 2])
     ;; (keycaps vtxs t-vtxs)
     (thumb-cluster)
-    (patch vtxs t-vtxs)
+    ;; (patch vtxs t-vtxs)
     (rj-11-socket-holder vtxs)
     (arduino-holder vtxs)
     (mounts))
