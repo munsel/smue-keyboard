@@ -165,54 +165,52 @@
                                       (union
                                        (wall (hull (sp (to-key (first ps)))
                                                    (sp (from-key (second ps)))))))))))))
-         wall-top (let [plates (map last vtxs)
-                        ymax (+ 5 (apply max (map #(nth (:tl %) 1) plates)))
-                        off (fn [k plate]
-                              (translate-v
-                               (scale-v (normalized-normal-v plate) 5)
-                               (k plate)))]
-                    (union
-                     (for [plate plates]
-                       (hull (sp (:tl plate))
-                             (sp (:tr plate))
-                             (sp (off :tl plate))
-                             (sp (off :tr plate))))
-                     (for [plate plates]
-                       (wall
-                        (hull (sp (off :tl plate))
-                              (sp (off :tr plate)))))
-                     (loop [ps plates
-                            acc '()]
-                       (if (>= 1 (count ps))
-                         acc
-                         (recur (rest ps)
-                                (conj acc
-                                      (union
-                                       (wall (hull (sp (off :tr (first ps)))
-                                                   (sp (off :tl (second ps)))))
-                                       (hull (sp (off :tr (first ps)))
-                                             (sp (off :tl (second ps)))
-                                             (sp (:tr (first ps)))
-                                             (sp (:tl (second ps)))))))))
-                     (wall
-                      (hull (-> plates last :tr sp)
-                            (sp  (off :tr (last plates)))))
-                     (wall
-                      (hull (-> plates first :tl sp)
-                            (sp (off :tl (first plates)))))))
-        wall-right (waller (last vtxs) r r1 :br :tr)
-        wall-top-thumb (waller (map last vtxs)  t t1 :tl :tr)
-        wall-bottom (waller (map first vtxs) b b1 :bl :br)
-        wall-left (waller (first vtxs) l l1 :bl :tl)]
-    (union wall-right
-           wall-left
-           (if thumb? wall-top-thumb wall-top)
+         wall-off (fn [plates k1 k2 start end]
+                    (let [plates (drop-last end (drop start plates))
+                          ymax (+ 5 (apply max (map #(nth (k1 %) 1) plates)))
+                          off (fn [k plate]
+                                (translate-v
+                                 (scale-v (normalized-normal-v plate) 10)
+                                 (k plate)))]
+                      (union
+                       (for [plate plates]
+                         (hull (sp (k1 plate))
+                               (sp (k2 plate))
+                               (sp (off k1 plate))
+                               (sp (off k2 plate))))
+                       (for [plate plates]
+                         (wall
+                          (hull (sp (off k1 plate))
+                                (sp (off k2 plate)))))
+                       (loop [ps plates
+                              acc '()]
+                         (if (>= 1 (count ps))
+                           acc
+                           (recur (rest ps)
+                                  (conj acc
+                                        (union
+                                         (wall (hull (sp (off k2 (first ps)))
+                                                     (sp (off k1 (second ps)))))
+                                         (hull (sp (off k2 (first ps)))
+                                               (sp (off k1 (second ps)))
+                                               (sp (k2 (first ps)))
+                                               (sp (k1 (second ps)))))))))
+                       )))
+         wall-right (if thumb? (waller (last vtxs) r r1 :br :tr) (wall-off (last vtxs) :br :tr r r1))
+         wall-top-thumb (waller (map last vtxs)  t t1 :tl :tr)
+         wall-bottom (if thumb? (waller (map first vtxs) b b1 :bl :br) (wall-off (map first vtxs) :bl :br b b1))
+         wall-left (if thumb? (waller (first vtxs) l l1 :bl :tl) (wall-off (first vtxs) :bl :tl t t1))]
+     (union wall-right
+            wall-left
+            (if thumb? wall-top-thumb (wall-off (map last vtxs) :tl :tr t t1))
            wall-bottom)))
   ([vtxs starts]
    (walls vtxs starts (take (count starts) (repeat 0)) false))
   ([vtxs starts ends]
    (walls vtxs starts ends false)))
 
+
+;; (keyboard vtxs)
 
 (defn switch-cuttout [p]
   (let [a (* 0.5 switch-plane-size)
